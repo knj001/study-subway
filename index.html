@@ -9,6 +9,7 @@
 :root { --bg:#f4f6f9; --card:#fff; --text:#1d2330; --muted:#7a8494; --line:#dfe3ea; --ok:#1aa260; --bad:#e5484d; --c:#0052A4; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1c2029; --text:#e8ebf1; --muted:#9099a8; --line:#2c323e; } }
 * { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body { margin:0; background:var(--bg); color:var(--text); font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
 button { font: inherit; cursor: pointer; }
 .wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
@@ -65,7 +66,9 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 /* 결과 */
 .big-num { font-size: 40px; font-weight: 900; }
 .stats { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align:center; }
-.stats div { background: var(--bg); border-radius: 12px; padding: 10px 4px; }
+.stats > div { background: var(--bg); border-radius: 12px; padding: 10px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.stats .muted { white-space: nowrap; font-size: 14px; }
+.stats .big-num { font-size: clamp(26px, 9vw, 40px); line-height: 1.1; white-space: nowrap; }
 .miss-list li { margin: 4px 0; }
 .miss-list b { color: var(--bad); }
 /* 타자 연습 */
@@ -81,6 +84,8 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
   .sign .here { font-size: 24px; min-width: 0; }
   .sign .prev, .sign .next { font-size: 12px; }
   .clue { font-size: 18px; }
+  h1 { font-size: 20px; }
+  .passage { font-size: 18px; padding: 12px 14px; }
 }
 </style>
 </head>
@@ -89,6 +94,7 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 <script src="data.js"></script>
 <script>
 const $app = document.getElementById("app");
+new MutationObserver(() => window.scrollTo(0, 0)).observe($app, { childList: true });
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const norm = (s) => s.toLowerCase().replace(/[\s·・.,ㆍ\-'"「」()]/g, "");
 const store = {
@@ -184,7 +190,7 @@ function start(subj, lines, bestKey, isWrongRun = false) {
       <div class="mid"><span class="prev" id="prev"></span><span class="here" id="here"></span><span class="next" id="next"></span></div></div>
     <div class="clue" id="clue"></div>
     <div class="hint" id="hint"></div>
-    <input id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="역 이름(정답)을 치고 Enter">
+    <input id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="정답 입력 후 Enter">
     <div class="keys">Enter 확인 · 틀리면 초성 힌트 → 두 번 틀리면 정답이 보여요 (그대로 쳐야 출발해요) · Esc 정답 보기</div>
     <div class="map"><div class="track" id="track"></div></div>`;
   // 노선도 그리기
@@ -291,9 +297,9 @@ function finish() {
     <h1>🏁 도착!</h1>
     <div class="card">
       <div class="stats">
-        <div><div class="muted">걸린 시간</div><div class="big-num">${fmtTime(ms)}</div></div>
-        <div><div class="muted">한 번에 맞힌 역</div><div class="big-num">${acc}%</div></div>
-        <div><div class="muted">최고 기록</div><div class="big-num">${best ? fmtTime(best.ms) : "-"}</div></div>
+        <div><div class="muted">시간</div><div class="big-num">${fmtTime(ms)}</div></div>
+        <div><div class="muted">정답률</div><div class="big-num">${acc}%</div></div>
+        <div><div class="muted">최고</div><div class="big-num">${best ? fmtTime(best.ms) : "-"}</div></div>
       </div>
       ${newBest ? `<p style="text-align:center;font-weight:800">🎉 새 기록! (최고 기록은 다 맞혀야 남아요)</p>` : acc < 100 && G.bestKey ? `<p class="muted" style="text-align:center">최고 기록은 100% 맞혔을 때만 남아요</p>` : ""}
     </div>
@@ -319,7 +325,8 @@ function typingHome(subj) {
   const P = PASSAGES[subj.id];
   const best = store.get(`type_best_${subj.id}`, null);
   $app.innerHTML = `
-    <div class="row" style="justify-content:space-between"><h1>⌨️ 타자 연습 · ${esc(subj.name)}</h1><button class="sub" id="back">← 지하철로</button></div>
+    <button class="sub" id="back">← 지하철로</button>
+    <h1>⌨️ 타자 연습 · ${esc(subj.name)}</h1>
     <div class="muted">글을 보면서 그대로 쳐요. 다 치면 타수(1분에 친 타수)와 정확도가 나와요.</div>
     <div class="card"><b>최고 기록</b> ${best ? `<span class="big-num" style="font-size:28px;margin-left:8px">${best.cpm}타</span> <span class="muted">(정확도 ${best.acc}%)</span>` : `<span class="muted">아직 없어요</span>`}
       <div class="lines" style="margin-top:12px">
@@ -386,16 +393,16 @@ function finishTyping(subj, idx, st) {
   const key = `type_best_${subj.id}`;
   const best = store.get(key, null);
   // 정확도 90% 이상일 때만 기록으로 인정
-  const newBest = st.acc >= 90 && (!best || st.cpm > best.cpm);
+  const newBest = st.acc >= 90 && st.cpm > 0 && (!best || st.cpm > best.cpm);
   if (newBest) store.set(key, { cpm: st.cpm, acc: st.acc });
   const shown = newBest ? { cpm: st.cpm, acc: st.acc } : best;
   const level = st.cpm >= 500 ? "🚄 KTX급" : st.cpm >= 350 ? "🚇 급행" : st.cpm >= 200 ? "🚃 일반열차" : "🚶 걸어가는 중";
   $app.innerHTML = `
-    <h1>⌨️ 다 쳤어요! ${level}</h1>
+    <h1>⌨️ 다 쳤어요!</h1><div style="font-size:18px;font-weight:700">${level}</div>
     <div class="card"><div class="stats">
-      <div><div class="muted">타수 (1분)</div><div class="big-num">${st.cpm}</div></div>
+      <div><div class="muted">타수</div><div class="big-num">${st.cpm}</div></div>
       <div><div class="muted">정확도</div><div class="big-num">${st.acc}%</div></div>
-      <div><div class="muted">걸린 시간</div><div class="big-num">${fmtTime(st.ms)}</div></div>
+      <div><div class="muted">시간</div><div class="big-num">${fmtTime(st.ms)}</div></div>
     </div>
     <p style="text-align:center" class="${newBest ? "" : "muted"}">${newBest ? "🎉 새 최고 기록!" : `최고 기록 ${shown ? shown.cpm + "타" : "-"}${st.acc < 90 ? " · 정확도 90% 이상이어야 기록돼요" : ""}`}</p></div>
     <div class="row"><button class="go" id="again" style="flex:1">같은 글 다시</button><button class="go" id="next" style="flex:1;background:#555">다른 글</button></div>`;
