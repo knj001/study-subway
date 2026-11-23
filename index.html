@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>공부 지하철</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
+<style>
+:root { --bg:#f4f6f9; --card:#fff; --text:#1d2330; --muted:#7a8494; --line:#dfe3ea; --ok:#1aa260; --bad:#e5484d; --c:#0052A4; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#12151b; --card:#1c2029; --text:#e8ebf1; --muted:#9099a8; --line:#2c323e; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+button { font: inherit; cursor: pointer; }
+.wrap { max-width: 860px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 24px; margin: 8px 0 4px; }
+.muted { color: var(--muted); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px 0; }
+/* 고르기 화면 */
+.subj { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.subj button { background: var(--card); color: var(--text); border: 2px solid var(--line); border-radius: 14px; padding: 14px; text-align: left; }
+.subj button.on { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent); }
+.subj b { font-size: 18px; display:block; }
+.lines { display:flex; flex-direction:column; gap: 6px; margin-top: 8px; }
+.ln { display:flex; align-items:center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); text-align:left; }
+.ln .dot { width: 26px; height: 26px; border-radius: 50%; color:#fff; font-weight: 800; font-size: 13px; display:grid; place-items:center; flex:none; }
+.ln .nm { flex:1; font-weight: 600; }
+.ln .tag { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.ln.from .tag, .ln.to .tag { background: var(--c); color:#fff; }
+.ln.mid { background: color-mix(in srgb, var(--c) 7%, var(--card)); }
+.go { width:100%; background: var(--c); color:#fff; border:0; border-radius: 14px; padding: 16px; font-size: 18px; font-weight: 800; margin-top: 12px; }
+.go:disabled { opacity: .4; }
+.sub { background: transparent; color: var(--text); border:1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.row { display:flex; gap: 8px; flex-wrap: wrap; align-items:center; }
+/* 게임 화면 */
+.hud { display:flex; justify-content: space-between; align-items:center; gap: 8px; font-weight: 700; }
+.hud .pill { background: var(--card); border:1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-variant-numeric: tabular-nums; }
+.sign { margin-top: 12px; border-radius: 14px; overflow:hidden; border: 3px solid var(--c); background: #fff; color:#111; }
+.sign .top { background: var(--c); color:#fff; padding: 6px 14px; font-size: 14px; font-weight: 700; display:flex; justify-content: space-between; }
+.sign .mid { display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; padding: 10px 12px; gap: 10px; }
+.sign .prev, .sign .next { font-size: 15px; color:#555; white-space: nowrap; overflow:hidden; text-overflow: ellipsis; }
+.sign .prev::before { content:"◀ "; } .sign .next::after { content:" ▶"; } .sign .next { text-align:right; }
+.sign .here { font-size: 30px; font-weight: 900; letter-spacing: 2px; min-width: 6em; text-align:center; }
+.clue { font-size: 21px; font-weight: 700; line-height: 1.45; margin: 16px 2px 10px; min-height: 2.9em; }
+.hint { color: var(--muted); font-size: 15px; min-height: 1.4em; margin: 0 2px 8px; }
+.hint b { color: var(--bad); }
+#ans { width:100%; font-size: 26px; padding: 14px 16px; border-radius: 14px; border: 3px solid var(--line); background: var(--card); color: var(--text); outline: none; }
+#ans:focus { border-color: var(--c); }
+#ans.bad { border-color: var(--bad); animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+.keys { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.transfer { position: fixed; inset: 0; display:grid; place-items:center; background: rgba(0,0,0,.45); z-index: 5; }
+.transfer div { background: var(--card); color: var(--text); border-radius: 20px; padding: 24px 28px; text-align:center; font-size: 18px; font-weight: 700; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+.transfer .big { font-size: 26px; margin: 6px 0; }
+/* 노선도 띠 */
+.map { position: relative; overflow: hidden; margin-top: 18px; height: 92px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.track { position:absolute; top: 0; left: 0; height: 100%; transition: transform .6s cubic-bezier(.4,.1,.2,1); }
+.seg { position:absolute; top: 40px; height: 8px; border-radius: 4px; }
+.st { position:absolute; top: 33px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; background: #fff; border: 5px solid; }
+.st.x { width: 28px; height: 28px; margin-left: -14px; top: 30px; border-width: 6px; background: #fff; box-shadow: 0 0 0 3px #fff inset; }
+.st.done { background: currentColor; }
+.st.miss::after { content:"!"; position:absolute; top:-26px; left: 50%; transform: translateX(-50%); color: var(--bad); font-weight: 900; }
+.lab { position:absolute; top: 62px; font-size: 12px; white-space: nowrap; transform: translateX(-50%); color: var(--muted); }
+.lab.cur { color: var(--text); font-weight: 800; }
+.train { position:absolute; top: 4px; font-size: 26px; transform: translateX(-50%); transition: left .6s cubic-bezier(.4,.1,.2,1); }
+/* 결과 */
+.big-num { font-size: 40px; font-weight: 900; }
+.stats { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align:center; }
+.stats div { background: var(--bg); border-radius: 12px; padding: 10px 4px; }
+.miss-list li { margin: 4px 0; }
+.miss-list b { color: var(--bad); }
+@media (max-width: 520px) {
+  .subj { grid-template-columns: 1fr; }
+  .sign .here { font-size: 24px; min-width: 0; }
+  .sign .prev, .sign .next { font-size: 12px; }
+  .clue { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script src="data.js"></script>
+<script>
+const $app = document.getElementById("app");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const norm = (s) => s.toLowerCase().replace(/[\s·・.,ㆍ\-'"「」()]/g, "");
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+// 초성 힌트
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const chosung = (s) => [...s].map((ch) => { const c = ch.charCodeAt(0) - 0xac00; return c >= 0 && c < 11172 ? CHO[Math.floor(c / 588)] : ch; }).join("");
+const fmtTime = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+let pick = { subj: store.get("pick", {}).subj || "history", from: null, to: null };
+
+// 오답 모음 (과목별, 정답 기준으로 저장)
+const missKey = (sid) => `miss_${sid}`;
+function wrongStops(subj) {
+  const m = store.get(missKey(subj.id), {});
+  const all = subj.lines.flatMap((l) => l.stops);
+  return all.filter((s) => m[s[1]] > 0);
+}
+
+/* ---------- 고르기 화면 ---------- */
+function home() {
+  const subj = SUBJECTS.find((s) => s.id === pick.subj);
+  document.documentElement.style.setProperty("--c", subj.lines[0].color);
+  const wrong = wrongStops(subj);
+  const f = pick.from, t = pick.to;
+  const lo = f == null ? null : Math.min(f, t ?? f), hi = f == null ? null : Math.max(f, t ?? f);
+  $app.innerHTML = `
+    <h1>🚇 공부 지하철</h1>
+    <div class="muted">역 이름을 정확히 쳐야 다음 역으로 가요. 탈 때마다 역과 설명이 조금씩 바뀌어요!</div>
+    <div class="card">
+      <div class="subj">${SUBJECTS.map((s) => `<button data-subj="${s.id}" class="${s.id === pick.subj ? "on" : ""}"><b>${s.icon} ${esc(s.name)}</b><span class="muted">${esc(s.desc)}</span></button>`).join("")}</div>
+    </div>
+    <div class="card">
+      <b>${f == null ? "① 출발 노선을 누르세요" : t == null ? "② 도착 노선을 누르세요 (같은 노선을 한 번 더 누르면 그 노선만)" : "출발 → 도착 정했어요"}</b>
+      <div class="lines">${subj.lines.map((l, i) => {
+        const cls = i === f ? "from" : i === t ? "to" : lo != null && t != null && i > lo && i < hi ? "mid" : "";
+        const best = store.get(`best_${subj.id}_${i}_${i}`, null);
+        return `<button class="ln ${cls}" data-line="${i}"><span class="dot" style="background:${l.color}">${i + 1}</span><span class="nm">${esc(l.name)} <span class="muted">· ${Math.min(subj.pick || 99, l.stops.length)}역 (문제 ${l.stops.length}개 중)</span></span>
+          ${i === f ? `<span class="tag">출발</span>` : ""}${i === t && t !== f ? `<span class="tag">도착</span>` : ""}${best && i !== f && i !== t ? `<span class="muted" style="font-size:12px">최고 ${fmtTime(best.ms)}</span>` : ""}</button>`;
+      }).join("")}</div>
+      <button class="go" id="go" ${t == null ? "disabled" : ""}>${t == null ? "노선을 골라 주세요" : `출발! (${subj.lines.slice(lo, hi + 1).reduce((n, l) => n + Math.min(subj.pick || 99, l.stops.length), 0)}역${hi > lo ? ` · 환승 ${hi - lo}번` : ""})`}</button>
+      <div class="row" style="margin-top:10px">
+        <button class="sub" id="all">🗺️ 전 노선 종주</button>
+        <button class="sub" id="wrong" ${wrong.length ? "" : "disabled"}>❗ 오답 노선 (${wrong.length}역)</button>
+        ${f != null ? `<button class="sub" id="reset">다시 고르기</button>` : ""}
+      </div>
+    </div>`;
+  $app.querySelectorAll("[data-subj]").forEach((b) => b.onclick = () => { pick = { subj: b.dataset.subj, from: null, to: null }; store.set("pick", { subj: pick.subj }); home(); });
+  $app.querySelectorAll("[data-line]").forEach((b) => b.onclick = () => {
+    const i = Number(b.dataset.line);
+    if (pick.from == null || pick.to != null) { pick.from = i; pick.to = null; } else pick.to = i;
+    home();
+  });
+  const go = document.getElementById("go");
+  go.onclick = () => {
+    const a = Math.min(pick.from, pick.to), z = Math.max(pick.from, pick.to);
+    start(subj, subj.lines.slice(a, z + 1), `best_${subj.id}_${a}_${z}`);
+  };
+  document.getElementById("all").onclick = () => start(subj, subj.lines, `best_${subj.id}_0_${subj.lines.length - 1}`);
+  const w = document.getElementById("wrong");
+  w.onclick = () => start(subj, [{ name: "오답 노선", color: "#e5484d", stops: wrong }], null, true);
+  document.getElementById("reset")?.addEventListener("click", () => { pick.from = pick.to = null; home(); });
+}
+
+/* ---------- 달리기 ---------- */
+let G = null;
+const GAP = 120; // 역 사이 간격(px)
+function start(subj, lines, bestKey, isWrongRun = false) {
+  // 노선마다 일부만 무작위로 뽑기 (시대순 과목은 순서 유지 + 마지막 환승역은 항상), 설명도 여러 개 중 하나
+  const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const shuffle = (arr) => { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const stops = [];
+  lines.forEach((l, li) => {
+    let chosen = l.stops;
+    const n = subj.pick || l.stops.length;
+    if (!isWrongRun && l.stops.length > n) {
+      if (subj.ordered) {
+        const last = l.stops.length - 1;
+        const keep = new Set(shuffle([...Array(last).keys()]).slice(0, n - 1));
+        chosen = l.stops.filter((_, k) => k === last || keep.has(k));
+      } else chosen = shuffle(l.stops).slice(0, n);
+    } else if (!subj.ordered) chosen = shuffle(l.stops);
+    chosen.forEach((s, si) => stops.push({ q: Array.isArray(s[0]) ? rnd(s[0]) : s[0], a: s[1], alts: s.slice(1), line: l, li, transfer: si === chosen.length - 1 && li < lines.length - 1 }));
+  });
+  G = { subj, lines, stops, i: 0, tries: 0, miss: [], t0: performance.now(), bestKey, isWrongRun, timer: null };
+  $app.innerHTML = `
+    <div class="hud"><button class="sub" id="quit">← 그만</button><span class="pill" id="prog"></span><span class="pill" id="time">0:00</span></div>
+    <div class="sign"><div class="top"><span id="lname"></span><span id="dir"></span></div>
+      <div class="mid"><span class="prev" id="prev"></span><span class="here" id="here"></span><span class="next" id="next"></span></div></div>
+    <div class="clue" id="clue"></div>
+    <div class="hint" id="hint"></div>
+    <input id="ans" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="역 이름(정답)을 치고 Enter">
+    <div class="keys">Enter 확인 · 틀리면 초성 힌트 → 두 번 틀리면 정답이 보여요 (그대로 쳐야 출발해요) · Esc 정답 보기</div>
+    <div class="map"><div class="track" id="track"></div></div>`;
+  // 노선도 그리기
+  const track = document.getElementById("track");
+  let html = "";
+  stops.forEach((s, k) => {
+    const x = 60 + k * GAP;
+    if (k < stops.length - 1) html += `<div class="seg" style="left:${x}px;width:${GAP}px;background:${stops[k + 1].li !== s.li ? stops[k + 1].line.color : s.line.color}"></div>`;
+  });
+  stops.forEach((s, k) => {
+    const x = 60 + k * GAP;
+    html += `<div class="st ${s.transfer ? "x" : ""}" id="st${k}" style="left:${x}px;color:${s.line.color};border-color:${s.transfer ? "#333" : s.line.color}"></div>
+      <div class="lab" id="lb${k}" style="left:${x}px">${k === 0 ? "출발" : k === stops.length - 1 ? "도착" : s.transfer ? "환승" : ""}</div>`;
+  });
+  html += `<div class="train" id="train">🚇</div>`;
+  track.innerHTML = html;
+  track.style.width = `${120 + stops.length * GAP}px`;
+  const ans = document.getElementById("ans");
+  ans.addEventListener("keydown", onKey);
+  ans.addEventListener("animationend", () => ans.classList.remove("bad"));
+  document.getElementById("quit").onclick = () => { clearInterval(G.timer); G = null; home(); };
+  G.timer = setInterval(() => { const el = document.getElementById("time"); if (el) el.textContent = fmtTime(performance.now() - G.t0); }, 250);
+  show();
+  ans.focus();
+}
+function show() {
+  const s = G.stops[G.i];
+  document.documentElement.style.setProperty("--c", s.line.color);
+  document.getElementById("lname").textContent = `${s.li + 1}. ${s.line.name}`;
+  document.getElementById("dir").textContent = `${G.stops[G.stops.length - 1].line.name} 방면`;
+  document.getElementById("prev").textContent = G.i > 0 ? G.stops[G.i - 1].a : "출발";
+  document.getElementById("here").textContent = "?".repeat(Math.min(6, [...s.a].length));
+  document.getElementById("next").textContent = G.i < G.stops.length - 1 ? "다음 역" : "종착";
+  document.getElementById("clue").textContent = s.q;
+  document.getElementById("hint").innerHTML = s.transfer ? "🔁 이번 역은 <b style='color:var(--text)'>환승역</b>이에요" : "";
+  document.getElementById("prog").textContent = `${G.i + 1} / ${G.stops.length}역`;
+  // 기차와 노선도 이동
+  const x = 60 + G.i * GAP;
+  const map = document.querySelector(".map");
+  document.getElementById("train").style.left = `${x}px`;
+  document.getElementById("track").style.transform = `translateX(${Math.min(0, map.clientWidth / 2 - x)}px)`;
+  document.querySelectorAll(".lab.cur").forEach((e) => e.classList.remove("cur"));
+  G.tries = 0;
+}
+function onKey(e) {
+  const inp = e.target;
+  if (e.key === "Escape") { reveal(G.stops[G.i]); return; }
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  // 한글 조합 중 Enter: 글자가 완성된 뒤에 채점 (안 그러면 지운 칸에 마지막 글자가 남음)
+  if (e.isComposing || e.keyCode === 229) {
+    inp.addEventListener("compositionend", () => setTimeout(() => submit(inp), 0), { once: true });
+    return;
+  }
+  submit(inp);
+}
+function submit(inp) {
+  if (!G) return;
+  const s = G.stops[G.i];
+  const v = norm(inp.value);
+  if (!v) return;
+  if (s.alts.some((a) => norm(a) === v)) return correct(s, inp);
+  G.tries++;
+  inp.classList.remove("bad"); void inp.offsetWidth; inp.classList.add("bad");
+  inp.value = "";
+  if (G.tries === 1) document.getElementById("hint").innerHTML = `힌트: <b>${esc(chosung(s.a))}</b>`;
+  else reveal(s);
+}
+function reveal(s) {
+  G.tries = Math.max(G.tries, 2);
+  document.getElementById("hint").innerHTML = `정답: <b>${esc(s.a)}</b> — 그대로 쳐 보세요`;
+  document.getElementById("here").textContent = s.a;
+}
+function correct(s, inp) {
+  inp.value = "";
+  const m = store.get(missKey(G.subj.id), {});
+  if (G.tries > 0) { G.miss.push(s); m[s.a] = (m[s.a] || 0) + 1; document.getElementById(`st${G.i}`).classList.add("miss"); }
+  else if (G.isWrongRun && m[s.a]) m[s.a] -= 1; // 오답 노선에서 한 번에 맞히면 하나씩 빠짐
+  store.set(missKey(G.subj.id), m);
+  document.getElementById(`st${G.i}`).classList.add("done");
+  const lb = document.getElementById(`lb${G.i}`); lb.textContent = s.a; lb.classList.add("cur");
+  document.getElementById("here").textContent = s.a;
+  if (G.i === G.stops.length - 1) return setTimeout(finish, 450);
+  const go = () => { G.i++; show(); inp.focus(); };
+  if (s.transfer) {
+    const nx = G.stops[G.i + 1].line;
+    const ov = document.createElement("div");
+    ov.className = "transfer";
+    ov.innerHTML = `<div>🔁 환승역 <span class="big">${esc(s.a)}</span><br>
+      <span style="color:${nx.color}">● ${esc(nx.name)}</span>으로 갈아탑니다</div>`;
+    document.body.appendChild(ov);
+    setTimeout(() => { ov.remove(); go(); }, 1300);
+  } else setTimeout(go, 150);
+}
+function finish() {
+  clearInterval(G.timer);
+  const ms = performance.now() - G.t0;
+  const total = G.stops.length, ok = total - G.miss.length;
+  const acc = Math.round((ok / total) * 100);
+  let best = G.bestKey ? store.get(G.bestKey, null) : null, newBest = false;
+  if (G.bestKey && acc === 100 && (!best || ms < best.ms)) { store.set(G.bestKey, { ms }); newBest = true; best = { ms }; }
+  const subj = G.subj, again = [G.lines, G.bestKey, G.isWrongRun];
+  $app.innerHTML = `
+    <h1>🏁 도착!</h1>
+    <div class="card">
+      <div class="stats">
+        <div><div class="muted">걸린 시간</div><div class="big-num">${fmtTime(ms)}</div></div>
+        <div><div class="muted">한 번에 맞힌 역</div><div class="big-num">${acc}%</div></div>
+        <div><div class="muted">최고 기록</div><div class="big-num">${best ? fmtTime(best.ms) : "-"}</div></div>
+      </div>
+      ${newBest ? `<p style="text-align:center;font-weight:800">🎉 새 기록! (최고 기록은 다 맞혀야 남아요)</p>` : acc < 100 && G.bestKey ? `<p class="muted" style="text-align:center">최고 기록은 100% 맞혔을 때만 남아요</p>` : ""}
+    </div>
+    ${G.miss.length ? `<div class="card"><b>❗ 다시 볼 역 (${G.miss.length})</b> <span class="muted">— 오답 노선에 모였어요</span>
+      <ul class="miss-list">${G.miss.map((s) => `<li><b>${esc(s.a)}</b> — ${esc(s.q)}</li>`).join("")}</ul></div>` : `<div class="card" style="text-align:center">💯 한 번도 안 틀렸어요!</div>`}
+    <div class="row"><button class="go" id="again" style="flex:1">한 번 더</button><button class="go" id="home" style="flex:1;background:#555">노선 고르기</button></div>`;
+  document.getElementById("again").onclick = () => again[2] ? start(subj, [{ name: "오답 노선", color: "#e5484d", stops: wrongStops(subj) }], null, true) : start(subj, ...again);
+  document.getElementById("home").onclick = () => { G = null; home(); };
+  if (again[2] && !wrongStops(subj).length) document.getElementById("again").disabled = true;
+}
+home();
+</script>
+</body>
+</html>
