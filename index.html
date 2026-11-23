@@ -17,7 +17,7 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 .muted { color: var(--muted); }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin: 12px 0; }
 /* 고르기 화면 */
-.subj { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.subj { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
 .subj button { background: var(--card); color: var(--text); border: 2px solid var(--line); border-radius: 14px; padding: 14px; text-align: left; }
 .subj button.on { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 20%, transparent); }
 .subj b { font-size: 18px; display:block; }
@@ -80,11 +80,14 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 #typer { width: 100%; font-size: 20px; line-height: 1.6; padding: 12px 14px; border-radius: 14px; border: 3px solid var(--line); background: var(--card); color: var(--text); outline: none; resize: none; margin-top: 10px; font-family: inherit; }
 #typer:focus { border-color: var(--c); }
 @media (max-width: 520px) {
-  .subj { grid-template-columns: 1fr; }
   .sign .here { font-size: 24px; min-width: 0; }
   .sign .prev, .sign .next { font-size: 12px; }
   .clue { font-size: 18px; }
   h1 { font-size: 20px; }
+  .subj { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .subj button { padding: 10px 4px; text-align: center; }
+  .subj b { font-size: 15px; white-space: nowrap; }
+  .subj .desc, .ln .pool { display: none; }
   .passage { font-size: 18px; padding: 12px 14px; }
 }
 </style>
@@ -92,6 +95,7 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 <body>
 <div class="wrap" id="app"></div>
 <script src="data.js"></script>
+<script src="science.js"></script>
 <script>
 const $app = document.getElementById("app");
 new MutationObserver(() => window.scrollTo(0, 0)).observe($app, { childList: true });
@@ -127,14 +131,14 @@ function home() {
     <h1>🚇 공부 지하철</h1>
     <div class="muted">역 이름을 정확히 쳐야 다음 역으로 가요. 탈 때마다 역과 설명이 조금씩 바뀌어요!</div>
     <div class="card">
-      <div class="subj">${SUBJECTS.map((s) => `<button data-subj="${s.id}" class="${s.id === pick.subj ? "on" : ""}"><b>${s.icon} ${esc(s.name)}</b><span class="muted">${esc(s.desc)}</span></button>`).join("")}</div>
+      <div class="subj">${SUBJECTS.map((s) => `<button data-subj="${s.id}" class="${s.id === pick.subj ? "on" : ""}"><b>${s.icon} ${esc(s.name)}</b><span class="muted desc">${esc(s.desc)}</span></button>`).join("")}</div>
     </div>
     <div class="card">
       <b>${f == null ? "① 출발 노선을 누르세요" : t == null ? "② 도착 노선을 누르세요 (같은 노선을 한 번 더 누르면 그 노선만)" : "출발 → 도착 정했어요"}</b>
       <div class="lines">${subj.lines.map((l, i) => {
         const cls = i === f ? "from" : i === t ? "to" : lo != null && t != null && i > lo && i < hi ? "mid" : "";
         const best = store.get(`best_${subj.id}_${i}_${i}`, null);
-        return `<button class="ln ${cls}" data-line="${i}"><span class="dot" style="background:${l.color}">${i + 1}</span><span class="nm">${esc(l.name)} <span class="muted">· ${Math.min(subj.pick || 99, l.stops.length)}역 (문제 ${l.stops.length}개 중)</span></span>
+        return `<button class="ln ${cls}" data-line="${i}"><span class="dot" style="background:${l.color}">${i + 1}</span><span class="nm">${esc(l.name)} <span class="muted">· ${Math.min(subj.pick || 99, l.stops.length)}역<span class="pool"> (문제 ${l.stops.length}개 중)</span></span></span>
           ${i === f ? `<span class="tag">출발</span>` : ""}${i === t && t !== f ? `<span class="tag">도착</span>` : ""}${best && i !== f && i !== t ? `<span class="muted" style="font-size:12px">최고 ${fmtTime(best.ms)}</span>` : ""}</button>`;
       }).join("")}</div>
       <button class="go" id="go" ${t == null ? "disabled" : ""}>${t == null ? "노선을 골라 주세요" : `출발! (${subj.lines.slice(lo, hi + 1).reduce((n, l) => n + Math.min(subj.pick || 99, l.stops.length), 0)}역${hi > lo ? ` · 환승 ${hi - lo}번` : ""})`}</button>
