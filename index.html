@@ -68,6 +68,14 @@ h1 { font-size: 24px; margin: 8px 0 4px; }
 .stats div { background: var(--bg); border-radius: 12px; padding: 10px 4px; }
 .miss-list li { margin: 4px 0; }
 .miss-list b { color: var(--bad); }
+/* 타자 연습 */
+.passage { font-size: 21px; line-height: 1.9; letter-spacing: .3px; word-break: keep-all; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-top: 12px; user-select: none; }
+.passage span.ok { color: var(--ok); }
+.passage span.ng { color: #fff; background: var(--bad); border-radius: 3px; }
+.passage span.cur { background: color-mix(in srgb, var(--c) 25%, transparent); border-radius: 3px; }
+.passage span.rest { color: var(--muted); }
+#typer { width: 100%; font-size: 20px; line-height: 1.6; padding: 12px 14px; border-radius: 14px; border: 3px solid var(--line); background: var(--card); color: var(--text); outline: none; resize: none; margin-top: 10px; font-family: inherit; }
+#typer:focus { border-color: var(--c); }
 @media (max-width: 520px) {
   .subj { grid-template-columns: 1fr; }
   .sign .here { font-size: 24px; min-width: 0; }
@@ -127,6 +135,7 @@ function home() {
       <div class="row" style="margin-top:10px">
         <button class="sub" id="all">🗺️ 전 노선 종주</button>
         <button class="sub" id="wrong" ${wrong.length ? "" : "disabled"}>❗ 오답 노선 (${wrong.length}역)</button>
+        <button class="sub" id="typing">⌨️ 타자 연습 (속도 재기)</button>
         ${f != null ? `<button class="sub" id="reset">다시 고르기</button>` : ""}
       </div>
     </div>`;
@@ -145,6 +154,7 @@ function home() {
   const w = document.getElementById("wrong");
   w.onclick = () => start(subj, [{ name: "오답 노선", color: "#e5484d", stops: wrong }], null, true);
   document.getElementById("reset")?.addEventListener("click", () => { pick.from = pick.to = null; home(); });
+  document.getElementById("typing").onclick = () => typingHome(subj);
 }
 
 /* ---------- 달리기 ---------- */
@@ -294,6 +304,105 @@ function finish() {
   document.getElementById("home").onclick = () => { G = null; home(); };
   if (again[2] && !wrongStops(subj).length) document.getElementById("again").disabled = true;
 }
+/* ---------- 타자 연습 ---------- */
+// 타수 = 1분에 누른 키 수 (한글은 자모 단위: 겹모음 ㅘ·겹받침 ㄳ 은 2타, 된소리 ㄲ 은 1타)
+const JUNG2 = new Set([9, 10, 11, 14, 15, 16, 19]);
+const JONG2 = new Set([3, 5, 6, 9, 10, 11, 12, 13, 14, 15, 18]);
+function strokes(ch) {
+  const c = ch.charCodeAt(0) - 0xac00;
+  if (c < 0 || c >= 11172) return 1;
+  const jung = Math.floor((c % 588) / 28), jong = c % 28;
+  return 1 + (JUNG2.has(jung) ? 2 : 1) + (jong ? (JONG2.has(jong) ? 2 : 1) : 0);
+}
+const sameCh = (a, b) => a === b || (/[·.ㆍ]/.test(a) && /[·.ㆍ]/.test(b));
+function typingHome(subj) {
+  const P = PASSAGES[subj.id];
+  const best = store.get(`type_best_${subj.id}`, null);
+  $app.innerHTML = `
+    <div class="row" style="justify-content:space-between"><h1>⌨️ 타자 연습 · ${esc(subj.name)}</h1><button class="sub" id="back">← 지하철로</button></div>
+    <div class="muted">글을 보면서 그대로 쳐요. 다 치면 타수(1분에 친 타수)와 정확도가 나와요.</div>
+    <div class="card"><b>최고 기록</b> ${best ? `<span class="big-num" style="font-size:28px;margin-left:8px">${best.cpm}타</span> <span class="muted">(정확도 ${best.acc}%)</span>` : `<span class="muted">아직 없어요</span>`}
+      <div class="lines" style="margin-top:12px">
+        <button class="ln" data-p="r"><span class="dot" style="background:#555">?</span><span class="nm">🎲 아무 글이나</span></button>
+        ${subj.lines.map((l, i) => P[i] ? `<button class="ln" data-p="${i}"><span class="dot" style="background:${l.color}">${i + 1}</span><span class="nm">${esc(l.name)} <span class="muted">· ${P[i].length}자</span></span></button>` : "").join("")}
+      </div></div>`;
+  document.getElementById("back").onclick = home;
+  $app.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => {
+    const i = b.dataset.p === "r" ? Math.floor(Math.random() * P.length) : Number(b.dataset.p);
+    typingRun(subj, i);
+  });
+}
+function typingRun(subj, idx) {
+  const text = PASSAGES[subj.id][idx];
+  const line = subj.lines[idx];
+  document.documentElement.style.setProperty("--c", line.color);
+  const T = { t0: 0, timer: null, composing: false, done: false };
+  $app.innerHTML = `
+    <div class="hud"><button class="sub" id="quit">← 그만</button><span class="pill" id="cpm">0타</span><span class="pill" id="acc">정확도 -</span><span class="pill" id="time">0:00</span></div>
+    <div class="sign" style="margin-top:12px"><div class="top"><span>${idx + 1}. ${esc(line.name)}</span><span>타자 연습</span></div></div>
+    <div class="passage" id="psg">${[...text].map((ch) => `<span class="rest">${esc(ch)}</span>`).join("")}</div>
+    <textarea id="typer" rows="3" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="여기에 치면 시작해요"></textarea>
+    <div class="keys">틀린 글자는 빨갛게 보여요 · 지우기(←)로 고칠 수 있어요 · 끝까지 치면 자동으로 끝나요</div>`;
+  const ta = document.getElementById("typer"), spans = [...document.querySelectorAll("#psg span")];
+  const chars = [...text];
+  const stat = (typed) => {
+    let ok = 0, keys = 0;
+    const n = Math.min(typed.length, chars.length);
+    for (let i = 0; i < n; i++) if (sameCh(typed[i], chars[i])) { ok++; keys += strokes(chars[i]); }
+    const ms = T.t0 ? performance.now() - T.t0 : 0;
+    return { ok, n, ms, cpm: ms > 1500 ? Math.round(keys / (ms / 60000)) : 0, acc: n ? Math.round((ok / n) * 100) : 100 };
+  };
+  const paint = () => {
+    if (T.done) return;
+    const typed = [...ta.value];
+    spans.forEach((sp, i) => {
+      const last = i === typed.length - 1 && T.composing;
+      sp.className = i >= typed.length ? (i === typed.length ? "cur" : "rest") : last ? "cur" : sameCh(typed[i], chars[i]) ? "ok" : "ng";
+    });
+    const st = stat(typed);
+    document.getElementById("cpm").textContent = `${st.cpm}타`;
+    document.getElementById("acc").textContent = `정확도 ${st.n ? st.acc + "%" : "-"}`;
+    if (!T.composing && typed.length >= chars.length) { T.done = true; clearInterval(T.timer); finishTyping(subj, idx, st); }
+  };
+  ta.addEventListener("input", () => {
+    if (!T.t0 && ta.value) {
+      T.t0 = performance.now();
+      T.timer = setInterval(() => {
+        if (T.done) return;
+        document.getElementById("time").textContent = fmtTime(performance.now() - T.t0);
+        document.getElementById("cpm").textContent = `${stat([...ta.value]).cpm}타`;
+      }, 300);
+    }
+    paint();
+  });
+  ta.addEventListener("compositionstart", () => { T.composing = true; });
+  ta.addEventListener("compositionend", () => { T.composing = false; setTimeout(paint, 0); });
+  ta.addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); });
+  ta.addEventListener("paste", (e) => e.preventDefault());
+  document.getElementById("quit").onclick = () => { T.done = true; clearInterval(T.timer); typingHome(subj); };
+  ta.focus();
+}
+function finishTyping(subj, idx, st) {
+  const key = `type_best_${subj.id}`;
+  const best = store.get(key, null);
+  // 정확도 90% 이상일 때만 기록으로 인정
+  const newBest = st.acc >= 90 && (!best || st.cpm > best.cpm);
+  if (newBest) store.set(key, { cpm: st.cpm, acc: st.acc });
+  const shown = newBest ? { cpm: st.cpm, acc: st.acc } : best;
+  const level = st.cpm >= 500 ? "🚄 KTX급" : st.cpm >= 350 ? "🚇 급행" : st.cpm >= 200 ? "🚃 일반열차" : "🚶 걸어가는 중";
+  $app.innerHTML = `
+    <h1>⌨️ 다 쳤어요! ${level}</h1>
+    <div class="card"><div class="stats">
+      <div><div class="muted">타수 (1분)</div><div class="big-num">${st.cpm}</div></div>
+      <div><div class="muted">정확도</div><div class="big-num">${st.acc}%</div></div>
+      <div><div class="muted">걸린 시간</div><div class="big-num">${fmtTime(st.ms)}</div></div>
+    </div>
+    <p style="text-align:center" class="${newBest ? "" : "muted"}">${newBest ? "🎉 새 최고 기록!" : `최고 기록 ${shown ? shown.cpm + "타" : "-"}${st.acc < 90 ? " · 정확도 90% 이상이어야 기록돼요" : ""}`}</p></div>
+    <div class="row"><button class="go" id="again" style="flex:1">같은 글 다시</button><button class="go" id="next" style="flex:1;background:#555">다른 글</button></div>`;
+  document.getElementById("again").onclick = () => typingRun(subj, idx);
+  document.getElementById("next").onclick = () => typingHome(subj);
+}
+
 home();
 </script>
 </body>
